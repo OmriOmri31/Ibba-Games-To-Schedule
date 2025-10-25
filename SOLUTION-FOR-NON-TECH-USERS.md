@@ -156,3 +156,4 @@ Would you like me to:
 
 **Which option do you prefer?** I recommend **Option 1 (Electron)** for your use case! 🎯
 
+

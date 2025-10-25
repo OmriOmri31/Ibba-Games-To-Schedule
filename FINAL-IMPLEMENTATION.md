@@ -257,3 +257,4 @@ Add English language option.
 
 **Ready to test?** Run `npm run electron` now! 🚀
 
+
