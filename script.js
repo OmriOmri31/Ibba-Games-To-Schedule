@@ -172,18 +172,6 @@ class RefereeScheduler {
         document.getElementById('googleSetup').style.display = 'block';
         document.getElementById('dashboard').style.display = 'none';
         document.getElementById('dataViewer').style.display = 'none';
-        
-        // Update Google API status
-        const statusText = document.getElementById('apiStatusText');
-        const statusDiv = document.getElementById('googleApiStatus');
-        
-        if (this.gapi) {
-            statusText.textContent = 'זמין ✅';
-            statusDiv.style.background = '#d4edda';
-        } else {
-            statusText.textContent = 'לא זמין ❌ (תוכל עדיין לדלג)';
-            statusDiv.style.background = '#f8d7da';
-        }
     }
 
     showDashboard(credentials = null) {
@@ -244,7 +232,7 @@ class RefereeScheduler {
     async authenticateGoogle() {
         if (!this.tokenClient) {
             console.error('❌ Google API not available');
-            alert('Google API לא זמין. אנא רענן את הדף ונסה שוב.');
+            alert('לא ניתן להתחבר ל-Google כרגע. אנא רענן את הדף ונסה שנית.');
             return;
         }
 
@@ -338,7 +326,7 @@ class RefereeScheduler {
             const changes = this.compareData(this.storedData, results);
             
             // Update Google Calendar
-            if (changes.added.length > 0 || changes.removed.length > 0) {
+            if (changes.added.length > 0 || changes.removed.length > 0 || (changes.updated && changes.updated.length > 0)) {
                 this.updateProgress(98, 'מעדכן יומן Google...');
                 await this.updateGoogleCalendar(changes);
             }
@@ -456,15 +444,36 @@ class RefereeScheduler {
         const oldGames = oldData || [];
         const newGames = newData || [];
         
+        // Find truly new games (not in old data at all)
         const added = newGames.filter(newGame => 
             !oldGames.some(oldGame => oldGame.id === newGame.id)
         );
         
+        // Find removed games (in old data but not in new)
         const removed = oldGames.filter(oldGame => 
             !newGames.some(newGame => newGame.id === oldGame.id)
         );
         
-        return { added, removed, updated: [] };
+        // Find updated games (same ID but different details)
+        const updated = newGames.filter(newGame => {
+            const oldGame = oldGames.find(old => old.id === newGame.id);
+            if (!oldGame) return false;
+            
+            // Check if any important details changed
+            return oldGame.date !== newGame.date ||
+                   oldGame.time !== newGame.time ||
+                   oldGame.address !== newGame.address ||
+                   oldGame.league !== newGame.league;
+        }).map(newGame => {
+            // Include the old calendar event ID if it exists
+            const oldGame = oldGames.find(old => old.id === newGame.id);
+            return {
+                ...newGame,
+                calendarEventId: oldGame?.calendarEventId
+            };
+        });
+        
+        return { added, removed, updated };
     }
 
     async updateGoogleCalendar(changes) {
@@ -476,6 +485,13 @@ class RefereeScheduler {
         try {
             // Add new events
             for (const game of changes.added) {
+                await this.createCalendarEvent(game);
+            }
+            
+            // Update changed events (delete old, create new)
+            for (const game of changes.updated) {
+                console.log('🔄 Updating event for game:', game.id);
+                await this.deleteCalendarEvent(game);
                 await this.createCalendarEvent(game);
             }
             
@@ -501,7 +517,8 @@ class RefereeScheduler {
             end: {
                 dateTime: this.parseDateTime(game.date, this.addHours(game.time, 2)),
                 timeZone: 'Asia/Jerusalem'
-            }
+            },
+            colorId: '5'  // Yellow color in Google Calendar
         };
 
         // Use the new REST API with access token
@@ -518,13 +535,36 @@ class RefereeScheduler {
             throw new Error(`Calendar API error: ${response.status} ${response.statusText}`);
         }
 
-        return await response.json();
+        const createdEvent = await response.json();
+        
+        // Store the event ID in the game object for future reference
+        game.calendarEventId = createdEvent.id;
+        
+        return createdEvent;
     }
 
     async deleteCalendarEvent(game) {
-        // This would require storing the Google Calendar event ID
-        // For now, we'll skip this implementation
-        console.log('Would delete event for game:', game.id);
+        if (!game.calendarEventId) {
+            console.log('⚠️  No calendar event ID for game:', game.id);
+            return;
+        }
+
+        try {
+            const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${game.calendarEventId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`
+                }
+            });
+
+            if (response.ok || response.status === 410) {  // 410 = already deleted
+                console.log('✅ Deleted calendar event for game:', game.id);
+            } else {
+                console.error('❌ Failed to delete event:', response.status);
+            }
+        } catch (error) {
+            console.error('❌ Error deleting calendar event:', error);
+        }
     }
 
     extractTeamName(teamField) {
@@ -554,30 +594,42 @@ class RefereeScheduler {
         let html = '<h3>תוצאות עדכון:</h3>';
         
         if (changes.added.length > 0) {
-            html += `<p><strong>נוספו ${changes.added.length} משחקים חדשים:</strong></p>`;
+            html += `<p><strong>✅ נוספו ${changes.added.length} משחקים חדשים:</strong></p>`;
             changes.added.forEach(game => {
                 const leagueName = game.leagueName || game.league;
-                html += `<div class="game-item">
+                html += `<div class="game-item" style="border-right: 4px solid #28a745;">
                     <h4>${game.homeTeamName || game.homeTeam} - ${game.guestTeamName || game.guestTeam} [${leagueName}]</h4>
-                    <p>תאריך: ${game.date} ${game.time}</p>
-                    <p>מיקום: ${game.address}</p>
+                    <p>📅 ${game.date} ⏰ ${game.time}</p>
+                    <p>📍 ${game.address}</p>
+                </div>`;
+            });
+        }
+        
+        if (changes.updated && changes.updated.length > 0) {
+            html += `<p><strong>🔄 עודכנו ${changes.updated.length} משחקים:</strong></p>`;
+            changes.updated.forEach(game => {
+                const leagueName = game.leagueName || game.league;
+                html += `<div class="game-item" style="border-right: 4px solid #ffc107;">
+                    <h4>${game.homeTeamName || game.homeTeam} - ${game.guestTeamName || game.guestTeam} [${leagueName}]</h4>
+                    <p>📅 ${game.date} ⏰ ${game.time}</p>
+                    <p>📍 ${game.address}</p>
                 </div>`;
             });
         }
         
         if (changes.removed.length > 0) {
-            html += `<p><strong>הוסרו ${changes.removed.length} משחקים:</strong></p>`;
+            html += `<p><strong>❌ הוסרו ${changes.removed.length} משחקים:</strong></p>`;
             changes.removed.forEach(game => {
                 const leagueName = game.leagueName || game.league;
-                html += `<div class="game-item">
+                html += `<div class="game-item" style="border-right: 4px solid #dc3545;">
                     <h4>${game.homeTeamName || game.homeTeam} - ${game.guestTeamName || game.guestTeam} [${leagueName}]</h4>
-                    <p>תאריך: ${game.date} ${game.time}</p>
+                    <p>📅 ${game.date} ⏰ ${game.time}</p>
                 </div>`;
             });
         }
         
-        if (changes.added.length === 0 && changes.removed.length === 0) {
-            html += '<p>אין שינויים במשחקים</p>';
+        if (changes.added.length === 0 && changes.removed.length === 0 && (!changes.updated || changes.updated.length === 0)) {
+            html += '<p>✅ אין שינויים במשחקים - הכל מעודכן!</p>';
         }
         
         // Add note about Google Calendar

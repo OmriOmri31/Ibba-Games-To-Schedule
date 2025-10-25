@@ -1,4 +1,6 @@
 // Basketball Referee Scheduler - Production Server
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { Builder, By, until } = require('selenium-webdriver');
