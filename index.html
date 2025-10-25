@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Referee Scheduler</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏀 Basketball Referee Scheduler</h1>
+            <p>מערכת תזמון משחקי כדורסל לשופטים</p>
+        </header>
+
+        <main>
+            <!-- Login Form -->
+            <div id="loginForm" class="form-container">
+                <h2>התחברות למערכת</h2>
+                <form id="loginFormElement">
+                    <div class="input-group">
+                        <label for="refNumber">מספר שופט:</label>
+                        <input type="number" id="refNumber" placeholder="הכנס מספר שופט" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="password">סיסמה:</label>
+                        <input type="password" id="password" placeholder="הכנס סיסמה" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">כניסה</button>
+                </form>
+            </div>
+
+            <!-- Google Account Setup -->
+            <div id="googleSetup" class="form-container" style="display: none;">
+                <h2>הגדרת חשבון Google</h2>
+                <div id="googleApiStatus" style="margin: 10px 0; padding: 10px; background: #fff3cd; border-radius: 4px;">
+                    <p><strong>סטטוס Google API:</strong> <span id="apiStatusText">בודק...</span></p>
+                </div>
+                <p>יש להתחבר לחשבון Google כדי לסנכרן עם היומן</p>
+                <p><small>או דלג לשימוש עם אחסון מקומי בלבד</small></p>
+                <div class="actions">
+                    <button id="googleAuthBtn" class="btn btn-google">
+                        <span>🔗</span> התחברות ל-Google
+                    </button>
+                    <button id="skipGoogleBtn" class="btn btn-secondary">
+                        <span>⏭️</span> דלג (ללא Google Calendar)
+                    </button>
+                </div>
+                <div id="googleAccountInfo" style="display: none;">
+                    <p>מחובר כ: <span id="googleEmail"></span></p>
+                    <button id="switchAccountBtn" class="btn btn-secondary">החלף חשבון</button>
+                    <button id="continueBtn" class="btn btn-primary">המשך ללוח בקרה</button>
+                </div>
+            </div>
+
+            <!-- Main Dashboard -->
+            <div id="dashboard" class="form-container" style="display: none;">
+                <h2>לוח בקרה</h2>
+                <div class="status-info">
+                    <p><strong>שופט:</strong> <span id="currentRefNumber"></span></p>
+                    <p><strong>חשבון Google:</strong> <span id="currentGoogleAccount"></span></p>
+                </div>
+                
+                <div class="actions">
+                    <button id="scrapeBtn" class="btn btn-primary">
+                        <span>🔄</span> עדכן יומן משחקים
+                    </button>
+                    <button id="viewDataBtn" class="btn btn-secondary">
+                        <span>📊</span> צפה בנתונים
+                    </button>
+                    <button id="logoutBtn" class="btn btn-danger">
+                        <span>🚪</span> התנתק
+                    </button>
+                </div>
+
+                <div id="progressContainer" style="display: none;">
+                    <div class="progress-bar">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                    <p id="progressText">מתחיל תהליך...</p>
+                </div>
+
+                <div id="resultsContainer" style="display: none;">
+                    <h3>תוצאות עדכון</h3>
+                    <div id="resultsContent"></div>
+                </div>
+            </div>
+
+            <!-- Data Viewer -->
+            <div id="dataViewer" class="form-container" style="display: none;">
+                <h2>נתוני משחקים</h2>
+                <button id="backToDashboard" class="btn btn-secondary">חזור ללוח בקרה</button>
+                <div id="gamesData"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2025 Basketball Referee Scheduler</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>מעבד נתונים...</p>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
