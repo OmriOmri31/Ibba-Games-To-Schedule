@@ -187,17 +187,26 @@ app.post('/api/scrape', async (req, res) => {
         const startTime = Date.now();
         
         const options = new chrome.Options();
-        options.addArguments('--headless');  // Try headless first to see if it works
+        options.addArguments('--headless');
         options.addArguments('--no-sandbox');
         options.addArguments('--disable-dev-shm-usage');
         options.addArguments('--disable-gpu');
         options.addArguments('--disable-software-rasterizer');
-        options.addArguments('--remote-debugging-port=9222');  // Use specific debugging port
+        options.addArguments('--remote-debugging-port=9222');
+        options.addArguments('--log-level=3');  // Suppress logs
+        options.addArguments('--silent');
+        options.excludeSwitches('enable-logging');  // Hide ChromeDriver console
         
-        // Build Chrome with timeout - SIMPLE approach (no ServiceBuilder)
+        // Set service to hide console window
+        const service = new chrome.ServiceBuilder()
+            .setStdio('ignore')  // Hide console output
+            .build();
+        
+        // Build Chrome with timeout
         const buildPromise = new Builder()
             .forBrowser('chrome')
             .setChromeOptions(options)
+            .setChromeService(service)
             .build();
         
         const timeoutPromise = new Promise((_, reject) => {

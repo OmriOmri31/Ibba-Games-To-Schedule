@@ -2,11 +2,55 @@
   "name": "basketball-referee-scheduler",
   "version": "1.0.0",
   "description": "מערכת תזמון משחקי כדורסל לשופטים",
-  "main": "server.js",
+  "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "electron": "electron .",
+    "electron-dev": "NODE_ENV=development electron .",
+    "build-win": "electron-builder --win --x64",
+    "build-portable": "electron-builder --win portable",
+    "dist": "electron-builder",
     "install-deps": "npm install"
+  },
+  "build": {
+    "appId": "com.basketball.referee-scheduler",
+    "productName": "Basketball Referee Scheduler",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icon-192.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Basketball Scheduler"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/**/*",
+      "node_modules/chromedriver/**/*",
+      "node_modules/selenium-webdriver/**/*",
+      "node_modules/express/**/*",
+      "node_modules/cors/**/*",
+      "node_modules/dotenv/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/chromedriver/lib/chromedriver",
+        "to": "chromedriver"
+      }
+    ]
   },
   "dependencies": {
     "chromedriver": "^119.0.1",
@@ -16,6 +60,8 @@
     "selenium-webdriver": "^4.15.0"
   },
   "devDependencies": {
+    "electron": "^38.4.0",
+    "electron-builder": "^26.0.12",
     "nodemon": "^3.0.1"
   },
   "keywords": [

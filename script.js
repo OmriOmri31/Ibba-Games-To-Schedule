@@ -473,7 +473,26 @@ class RefereeScheduler {
             };
         });
         
-        return { added, removed, updated };
+        // Find unchanged games (for checking calendar sync)
+        const unchanged = newGames.filter(newGame => {
+            const oldGame = oldGames.find(old => old.id === newGame.id);
+            if (!oldGame) return false;
+            
+            // Same game with no changes
+            return oldGame.date === newGame.date &&
+                   oldGame.time === newGame.time &&
+                   oldGame.address === newGame.address &&
+                   oldGame.league === newGame.league;
+        }).map(newGame => {
+            // Include the old calendar event ID
+            const oldGame = oldGames.find(old => old.id === newGame.id);
+            return {
+                ...newGame,
+                calendarEventId: oldGame?.calendarEventId
+            };
+        });
+        
+        return { added, removed, updated, unchanged };
     }
 
     async updateGoogleCalendar(changes) {
@@ -483,8 +502,30 @@ class RefereeScheduler {
         }
 
         try {
+            // Check for missing events (existed in JSON but deleted from calendar)
+            const missing = [];
+            if (changes.unchanged && changes.unchanged.length > 0) {
+                for (const game of changes.unchanged) {
+                    if (game.calendarEventId) {
+                        const exists = await this.checkEventExists(game.calendarEventId);
+                        if (!exists) {
+                            missing.push(game);
+                        }
+                    } else {
+                        // No event ID means it was never added to calendar
+                        missing.push(game);
+                    }
+                }
+            }
+            
             // Add new events
             for (const game of changes.added) {
+                await this.createCalendarEvent(game);
+            }
+            
+            // Re-add missing events
+            for (const game of missing) {
+                console.log('🔄 Re-adding deleted event for game:', game.id);
                 await this.createCalendarEvent(game);
             }
             
@@ -499,6 +540,9 @@ class RefereeScheduler {
             for (const game of changes.removed) {
                 await this.deleteCalendarEvent(game);
             }
+            
+            // Store missing count for user notification
+            this.missingEventsCount = missing.length;
         } catch (error) {
             console.error('❌ Google Calendar update failed:', error);
             // Don't throw error, just log it
@@ -541,6 +585,23 @@ class RefereeScheduler {
         game.calendarEventId = createdEvent.id;
         
         return createdEvent;
+    }
+
+    async checkEventExists(eventId) {
+        if (!eventId) return false;
+
+        try {
+            const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`
+                }
+            });
+
+            return response.ok; // 200 = exists, 404 = not found
+        } catch (error) {
+            console.error('❌ Error checking calendar event:', error);
+            return false;
+        }
     }
 
     async deleteCalendarEvent(game) {
@@ -632,9 +693,18 @@ class RefereeScheduler {
             html += '<p>✅ אין שינויים במשחקים - הכל מעודכן!</p>';
         }
         
+        // Show missing events notification
+        if (this.missingEventsCount && this.missingEventsCount > 0) {
+            html += `<div class="game-item" style="background: #d4edda; border-right-color: #28a745;">
+                <h4>🔄 שוחזרו ${this.missingEventsCount} אירועים שנמחקו</h4>
+                <p>אירועים שנמחקו ידנית מהיומן הוחזרו בהצלחה!</p>
+            </div>`;
+            this.missingEventsCount = 0; // Reset counter
+        }
+        
         // Add note about Google Calendar
         if (!this.googleAccount) {
-            html += '<div class="game-item" style="background: #fff3cd; border-left-color: #ffc107;">';
+            html += '<div class="game-item" style="background: #fff3cd; border-right-color: #ffc107;">';
             html += '<h4>⚠️ Google Calendar לא מחובר</h4>';
             html += '<p>הנתונים נשמרו מקומית. לחיבור ל-Google Calendar, לחץ על "התחברות ל-Google"</p>';
             html += '</div>';
