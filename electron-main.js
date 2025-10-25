@@ -84,8 +84,20 @@ function startServer() {
     return new Promise((resolve, reject) => {
         console.log('🚀 Starting Express server...');
         
+        // Determine the correct path to server.js
+        // In production (packaged), files are in app.asar.unpacked
+        // In development, files are in the project root
+        let serverPath;
+        if (app.isPackaged) {
+            serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server.js');
+        } else {
+            serverPath = path.join(__dirname, 'server.js');
+        }
+        
+        console.log('📂 Server path:', serverPath);
+        
         // Start server.js as a child process
-        serverProcess = spawn('node', [path.join(__dirname, 'server.js')], {
+        serverProcess = spawn('node', [serverPath], {
             env: { ...process.env, ELECTRON: 'true' },
             stdio: 'inherit'
         });
