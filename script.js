@@ -621,12 +621,28 @@ class RefereeScheduler {
     
     filterBasketballEvents(events) {
         // Filter events that match our basketball game format: "Team1 - Team2 [League]"
+        // Also check for Hebrew basketball terms in location
         return events.filter(event => {
             if (!event.summary) return false;
+            
+            const summary = event.summary;
+            const location = event.location || '';
+            
             // Check if summary matches pattern: contains " - " and " [" and "]"
-            return event.summary.includes(' - ') && 
-                   event.summary.includes('[') && 
-                   event.summary.includes(']');
+            const hasBasketballFormat = summary.includes(' - ') && 
+                                       summary.includes('[') && 
+                                       summary.includes(']');
+            
+            // Also check if location contains basketball court keywords (Hebrew)
+            const hasBasketballLocation = location.includes('היכל') || 
+                                         location.includes('מגרש') ||
+                                         location.includes('אולם') ||
+                                         location.includes('ספורט') ||
+                                         location.includes('כדורסל');
+            
+            // Match if it has our format OR has basketball-related location
+            // This catches both old and new events
+            return hasBasketballFormat || (hasBasketballLocation && summary.includes(' - '));
         });
     }
 
