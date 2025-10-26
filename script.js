@@ -325,10 +325,10 @@ class RefereeScheduler {
             // Process and compare data
             const changes = this.compareData(this.storedData, results);
             
-            // Update Google Calendar
-            if (changes.added.length > 0 || changes.removed.length > 0 || (changes.updated && changes.updated.length > 0)) {
-                this.updateProgress(98, 'מעדכן יומן Google...');
-                await this.updateGoogleCalendar(changes);
+            // Update Google Calendar - always run to clean duplicates
+            if (this.googleAccount) {
+                this.updateProgress(83, 'מעדכן יומן Google...');
+                await this.updateGoogleCalendar(changes, results);
             }
             
             // Save new data
@@ -354,30 +354,44 @@ class RefereeScheduler {
     }
 
     async scrapeWebsite() {
-        this.updateProgress(10, 'שולח בקשה לשרת...');
+        this.updateProgress(10, '📡 שולח בקשה לשרת...');
         
         const credentials = this.getStoredCredentials();
         if (!credentials) {
             throw new Error('לא נמצאו פרטי התחברות');
         }
 
-        this.updateProgress(20, 'ממתין לתגובה...');
+        this.updateProgress(15, '⏳ ממתין לתגובה מהשרת...');
         
         try {
-            // Show message that this might take a while
+            // Show progressive messages
             setTimeout(() => {
                 const currentProgress = parseInt(document.getElementById('progressBar').style.width);
                 if (currentProgress < 90) {
-                    this.updateProgress(40, 'מאתחל Chrome ודפדפן... (עשוי לקחת דקה)');
+                    this.updateProgress(25, '🌐 מאתחל Chrome...');
                 }
-            }, 2000);
+            }, 1000);
             
             setTimeout(() => {
                 const currentProgress = parseInt(document.getElementById('progressBar').style.width);
                 if (currentProgress < 90) {
-                    this.updateProgress(60, 'מתחבר לאתר השופטים... אנא המתן');
+                    this.updateProgress(35, '🔐 מתחבר לאתר השופטים...');
                 }
-            }, 5000);
+            }, 3000);
+            
+            setTimeout(() => {
+                const currentProgress = parseInt(document.getElementById('progressBar').style.width);
+                if (currentProgress < 90) {
+                    this.updateProgress(50, '📄 מחפש משחקים בעמודים...');
+                }
+            }, 6000);
+            
+            setTimeout(() => {
+                const currentProgress = parseInt(document.getElementById('progressBar').style.width);
+                if (currentProgress < 90) {
+                    this.updateProgress(70, '🏀 מחלץ פרטי משחקים...');
+                }
+            }, 10000);
             
                 const response = await fetch('/api/scrape', {
                     method: 'POST',
@@ -495,64 +509,125 @@ class RefereeScheduler {
         return { added, removed, updated, unchanged };
     }
 
-    async updateGoogleCalendar(changes) {
+    async updateGoogleCalendar(changes, allGames) {
         if (!this.accessToken || !this.googleAccount) {
             console.log('⚠️ Google Calendar not available, skipping calendar update');
-            return; // Skip calendar update instead of throwing error
+            this.updateProgress(95, 'Google Calendar לא מחובר - מדלג על עדכון יומן');
+            return;
         }
 
         try {
-            // Step 1: Get all existing calendar events to find and remove duplicates
-            console.log('🔍 Checking for duplicate events in calendar...');
-            const allCalendarEvents = await this.getAllCalendarEvents();
-            const duplicatesDeleted = await this.deleteDuplicateEvents(allCalendarEvents, changes);
+            // Step 1: Find date range from JSON games
+            this.updateProgress(85, '🔍 מחשב טווח תאריכים...');
+            const { firstDate, lastDate } = this.getDateRange(allGames);
+            console.log(`📅 Date range: ${firstDate} to ${lastDate}`);
             
-            // Step 2: Check for missing events (existed in JSON but deleted from calendar)
-            const missing = [];
-            if (changes.unchanged && changes.unchanged.length > 0) {
-                for (const game of changes.unchanged) {
-                    if (game.calendarEventId) {
-                        const exists = await this.checkEventExists(game.calendarEventId);
-                        if (!exists) {
-                            missing.push(game);
-                        }
-                    } else {
-                        // No event ID means it was never added to calendar
-                        missing.push(game);
-                    }
+            // Step 2: Get ALL calendar events in this date range (check every day)
+            this.updateProgress(87, '📥 מוריד אירועים קיימים מהיומן...');
+            const calendarEvents = await this.getCalendarEventsInRange(firstDate, lastDate);
+            console.log(`📊 Found ${calendarEvents.length} events in calendar`);
+            
+            // Step 3: Filter only basketball game events (match our format)
+            this.updateProgress(89, '🏀 מזהה משחקי כדורסל ביומן...');
+            const basketballEvents = this.filterBasketballEvents(calendarEvents);
+            console.log(`🏀 Found ${basketballEvents.length} basketball game events`);
+            
+            // Step 4: Delete ALL existing basketball events in this range
+            this.updateProgress(91, `🗑️  מוחק ${basketballEvents.length} אירועים קיימים...`);
+            let deletedCount = 0;
+            for (const event of basketballEvents) {
+                await this.deleteCalendarEventById(event.id);
+                deletedCount++;
+                if (deletedCount % 5 === 0) {
+                    this.updateProgress(91, `🗑️  נמחקו ${deletedCount}/${basketballEvents.length} אירועים...`);
                 }
             }
+            console.log(`✅ Deleted ${deletedCount} existing events`);
             
-            // Step 3: Add new events
-            for (const game of changes.added) {
+            // Step 5: Add ALL games from JSON to calendar (fresh start)
+            this.updateProgress(93, `➕ מוסיף ${allGames.length} משחקים ליומן...`);
+            let addedCount = 0;
+            for (const game of allGames) {
                 await this.createCalendarEvent(game);
+                addedCount++;
+                if (addedCount % 3 === 0) {
+                    this.updateProgress(93, `➕ נוספו ${addedCount}/${allGames.length} משחקים...`);
+                }
             }
-            
-            // Step 4: Re-add missing events
-            for (const game of missing) {
-                console.log('🔄 Re-adding deleted event for game:', game.id);
-                await this.createCalendarEvent(game);
-            }
-            
-            // Step 5: Update changed events (delete old, create new)
-            for (const game of changes.updated) {
-                console.log('🔄 Updating event for game:', game.id);
-                await this.deleteCalendarEvent(game);
-                await this.createCalendarEvent(game);
-            }
-            
-            // Step 6: Remove old events (games no longer in JSON)
-            for (const game of changes.removed) {
-                await this.deleteCalendarEvent(game);
-            }
+            console.log(`✅ Added ${addedCount} games to calendar`);
             
             // Store counts for user notification
-            this.missingEventsCount = missing.length;
-            this.duplicatesDeletedCount = duplicatesDeleted;
+            this.deletedEventsCount = deletedCount;
+            this.addedEventsCount = addedCount;
+            
+            this.updateProgress(97, '✅ עדכון יומן הושלם!');
         } catch (error) {
             console.error('❌ Google Calendar update failed:', error);
-            // Don't throw error, just log it
+            this.updateProgress(90, '⚠️ שגיאה בעדכון יומן');
         }
+    }
+    
+    getDateRange(games) {
+        if (!games || games.length === 0) {
+            const today = new Date();
+            const oneYear = new Date();
+            oneYear.setFullYear(oneYear.getFullYear() + 1);
+            return {
+                firstDate: today.toISOString().split('T')[0],
+                lastDate: oneYear.toISOString().split('T')[0]
+            };
+        }
+        
+        // Parse dates and find min/max
+        const dates = games.map(game => {
+            const [day, month, year] = game.date.split('/');
+            return new Date(year, month - 1, day);
+        }).sort((a, b) => a - b);
+        
+        const firstDate = dates[0].toISOString().split('T')[0];
+        const lastDate = dates[dates.length - 1].toISOString().split('T')[0];
+        
+        return { firstDate, lastDate };
+    }
+    
+    async getCalendarEventsInRange(startDate, endDate) {
+        try {
+            const timeMin = new Date(startDate).toISOString();
+            const timeMax = new Date(endDate + 'T23:59:59').toISOString();
+            
+            const response = await fetch(
+                `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+                `timeMin=${timeMin}&` +
+                `timeMax=${timeMax}&` +
+                `singleEvents=true&` +
+                `maxResults=2500`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${this.accessToken}`
+                    }
+                }
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.items || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('❌ Error fetching calendar events:', error);
+            return [];
+        }
+    }
+    
+    filterBasketballEvents(events) {
+        // Filter events that match our basketball game format: "Team1 - Team2 [League]"
+        return events.filter(event => {
+            if (!event.summary) return false;
+            // Check if summary matches pattern: contains " - " and " [" and "]"
+            return event.summary.includes(' - ') && 
+                   event.summary.includes('[') && 
+                   event.summary.includes(']');
+        });
     }
 
     async getAllCalendarEvents() {
@@ -747,32 +822,33 @@ class RefereeScheduler {
         
         let html = '<h3>תוצאות עדכון:</h3>';
         
-        // Show changes summary
+        // Show calendar sync summary
+        if (this.googleAccount) {
+            html += '<div class="game-item" style="background: #e3f2fd; border-right-color: #2196f3;">';
+            html += '<h4>📊 עדכון Google Calendar:</h4>';
+            if (this.deletedEventsCount) {
+                html += `<p>🗑️ נמחקו: ${this.deletedEventsCount} אירועים קיימים</p>`;
+            }
+            if (this.addedEventsCount) {
+                html += `<p>➕ נוספו: ${this.addedEventsCount} משחקים (רענון מלא)</p>`;
+            }
+            html += '<p>✅ היומן עודכן בהצלחה ללא כפילויות!</p>';
+            html += '</div>';
+            this.deletedEventsCount = 0;
+            this.addedEventsCount = 0;
+        }
+        
+        // Show changes from website summary
         const totalChanges = changes.added.length + (changes.updated?.length || 0) + changes.removed.length;
         if (totalChanges > 0) {
-            html += '<div class="game-item" style="background: #e3f2fd; border-right-color: #2196f3;">';
-            html += '<h4>📊 סיכום שינויים:</h4>';
-            if (changes.added.length > 0) html += `<p>✅ נוספו: ${changes.added.length} משחקים</p>`;
-            if (changes.updated && changes.updated.length > 0) html += `<p>🔄 עודכנו: ${changes.updated.length} משחקים</p>`;
-            if (changes.removed.length > 0) html += `<p>❌ הוסרו: ${changes.removed.length} משחקים</p>`;
-            if (this.duplicatesDeletedCount && this.duplicatesDeletedCount > 0) {
-                html += `<p>🗑️ נמחקו כפילויות: ${this.duplicatesDeletedCount} אירועים</p>`;
-                this.duplicatesDeletedCount = 0;
-            }
-            if (this.missingEventsCount && this.missingEventsCount > 0) {
-                html += `<p>🔄 שוחזרו: ${this.missingEventsCount} אירועים</p>`;
-                this.missingEventsCount = 0;
-            }
+            html += '<div class="game-item" style="background: #fff3cd; border-right-color: #ffc107;">';
+            html += '<h4>📝 שינויים באתר השופטים:</h4>';
+            if (changes.added.length > 0) html += `<p>✨ משחקים חדשים: ${changes.added.length}</p>`;
+            if (changes.updated && changes.updated.length > 0) html += `<p>🔄 שונו: ${changes.updated.length}</p>`;
+            if (changes.removed.length > 0) html += `<p>❌ בוטלו: ${changes.removed.length}</p>`;
             html += '</div>';
         } else {
-            html += '<p>✅ אין שינויים - הכל מעודכן!</p>';
-            if (this.duplicatesDeletedCount && this.duplicatesDeletedCount > 0) {
-                html += `<div class="game-item" style="background: #d4edda; border-right-color: #28a745;">
-                    <h4>🗑️ נמחקו ${this.duplicatesDeletedCount} כפילויות</h4>
-                    <p>אירועים כפולים הוסרו מהיומן!</p>
-                </div>`;
-                this.duplicatesDeletedCount = 0;
-            }
+            html += '<p>✅ אין שינויים באתר - כל המשחקים זהים!</p>';
         }
         
         // Show ALL games
