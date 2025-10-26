@@ -339,11 +339,6 @@ class RefereeScheduler {
             // Show results with ALL games
             this.showResults(changes, results);
             
-            // Show success message
-            setTimeout(() => {
-                alert('הלוח עודכן בהצלחה!');
-            }, 1000);
-            
         } catch (error) {
             console.error('Scraping failed:', error);
             this.updateProgress(0, 'שגיאה בתהליך');
@@ -531,6 +526,11 @@ class RefereeScheduler {
             this.updateProgress(89, '🏀 מזהה משחקי כדורסל ביומן...');
             const basketballEvents = this.filterBasketballEvents(calendarEvents);
             console.log(`🏀 Found ${basketballEvents.length} basketball game events`);
+            
+            // Debug: Log all basketball events to see what we're deleting
+            basketballEvents.forEach(event => {
+                console.log(`  📅 Will delete: "${event.summary}" on ${event.start?.dateTime || event.start?.date}`);
+            });
             
             // Step 4: Delete ALL existing basketball events in this range
             this.updateProgress(91, `🗑️  מוחק ${basketballEvents.length} אירועים קיימים...`);
@@ -902,13 +902,34 @@ class RefereeScheduler {
         resultsContent.innerHTML = html;
         resultsContainer.style.display = 'block';
         
-        // Show success message
+        // Show success message with changes summary
         setTimeout(() => {
+            let message = '';
             if (this.googleAccount) {
-                alert('הלוח עודכן בהצלחה!');
+                message = 'הלוח עודכן בהצלחה!\n\n';
+                if (this.deletedEventsCount > 0) {
+                    message += `🗑️ נמחקו: ${this.deletedEventsCount} אירועים\n`;
+                }
+                if (this.addedEventsCount > 0) {
+                    message += `➕ נוספו: ${this.addedEventsCount} משחקים\n`;
+                }
+                if (changes.added.length > 0) {
+                    message += `\n✨ משחקים חדשים באתר: ${changes.added.length}`;
+                }
+                if (changes.removed.length > 0) {
+                    message += `\n❌ משחקים שהוסרו מהאתר: ${changes.removed.length}`;
+                }
             } else {
-                alert('הנתונים נשמרו מקומית! Google Calendar לא מחובר.');
+                message = 'הנתונים נשמרו מקומית!\n\n';
+                if (changes.added.length > 0) {
+                    message += `✨ משחקים חדשים: ${changes.added.length}\n`;
+                }
+                if (changes.removed.length > 0) {
+                    message += `❌ משחקים שהוסרו: ${changes.removed.length}\n`;
+                }
+                message += '\n⚠️ Google Calendar לא מחובר';
             }
+            alert(message);
         }, 1000);
     }
 
