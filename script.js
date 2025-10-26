@@ -598,10 +598,11 @@ class RefereeScheduler {
     async getCalendarEventsInRange(startDate, endDate) {
         try {
             const timeMin = new Date(startDate).toISOString();
-            // Add one day to endDate to ensure we include events ON the last date
-            const endDatePlusOne = new Date(endDate);
-            endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
-            const timeMax = endDatePlusOne.toISOString();
+            // Add one week (7 days) to endDate as a buffer to ensure we catch all events
+            const endDatePlusBuffer = new Date(endDate);
+            endDatePlusBuffer.setDate(endDatePlusBuffer.getDate() + 7);
+            const timeMax = endDatePlusBuffer.toISOString();
+            console.log(`  📅 Fetching calendar events: ${timeMin} to ${timeMax}`);
             
             const response = await fetch(
                 `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
