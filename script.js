@@ -593,7 +593,10 @@ class RefereeScheduler {
     async getCalendarEventsInRange(startDate, endDate) {
         try {
             const timeMin = new Date(startDate).toISOString();
-            const timeMax = new Date(endDate + 'T23:59:59').toISOString();
+            // Add one day to endDate to ensure we include events ON the last date
+            const endDatePlusOne = new Date(endDate);
+            endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+            const timeMax = endDatePlusOne.toISOString();
             
             const response = await fetch(
                 `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
@@ -892,45 +895,13 @@ class RefereeScheduler {
         resultsContent.innerHTML = html;
         resultsContainer.style.display = 'block';
         
-        // Show success message with calendar sync summary
+        // Show simple success message
         setTimeout(() => {
             let message = '';
             if (this.googleAccount) {
-                message = 'הלוח עודכן בהצלחה!\n\n';
-                message += `📊 סנכרון מלא:\n`;
-                message += `🗑️ נמחקו ${this.deletedEventsCount} אירועים קיימים\n`;
-                message += `➕ נוספו ${this.addedEventsCount} משחקים\n`;
-                
-                // Only show website changes if there were any
-                const totalWebsiteChanges = changes.added.length + changes.removed.length + (changes.updated?.length || 0);
-                if (totalWebsiteChanges > 0) {
-                    message += `\n📝 שינויים באתר:\n`;
-                    if (changes.added.length > 0) {
-                        message += `✨ משחקים חדשים: ${changes.added.length}\n`;
-                    }
-                    if (changes.removed.length > 0) {
-                        message += `❌ משחקים שבוטלו: ${changes.removed.length}\n`;
-                    }
-                    if (changes.updated && changes.updated.length > 0) {
-                        message += `🔄 משחקים ששונו: ${changes.updated.length}\n`;
-                    }
-                } else {
-                    message += `\n✅ אין שינויים באתר`;
-                }
+                message = 'הלוח עודכן בהצלחה! ✅';
             } else {
-                message = 'הנתונים נשמרו מקומית!\n\n';
-                const totalChanges = changes.added.length + changes.removed.length;
-                if (totalChanges > 0) {
-                    if (changes.added.length > 0) {
-                        message += `✨ משחקים חדשים: ${changes.added.length}\n`;
-                    }
-                    if (changes.removed.length > 0) {
-                        message += `❌ משחקים שבוטלו: ${changes.removed.length}\n`;
-                    }
-                } else {
-                    message += `✅ אין שינויים\n`;
-                }
-                message += '\n⚠️ Google Calendar לא מחובר';
+                message = 'הנתונים נשמרו מקומית!\n⚠️ Google Calendar לא מחובר';
             }
             alert(message);
         }, 1000);
