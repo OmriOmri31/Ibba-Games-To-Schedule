@@ -581,7 +581,9 @@ class RefereeScheduler {
         // Parse dates and find min/max
         const dates = games.map(game => {
             const [day, month, year] = game.date.split('/');
-            return new Date(year, month - 1, day);
+            // Handle 2-digit year (e.g., 25 -> 2025) and 4-digit year (e.g., 2025)
+            const fullYear = year.length === 2 ? `20${year}` : year;
+            return new Date(fullYear, month - 1, day);
         }).sort((a, b) => a - b);
         
         const firstDate = dates[0].toISOString().split('T')[0];
