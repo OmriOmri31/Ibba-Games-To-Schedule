@@ -839,7 +839,7 @@ class RefereeScheduler {
         const resultsContainer = document.getElementById('resultsContainer');
         const resultsContent = document.getElementById('resultsContent');
         
-        let html = '<h3>תוצאות עדכון:</h3>';
+        let html = '';
         
         // Show calendar sync summary
         if (this.googleAccount) {
