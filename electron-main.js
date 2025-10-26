@@ -15,7 +15,6 @@ function createWindow() {
         minWidth: 800,
         minHeight: 600,
         title: 'Basketball Referee Scheduler',
-        icon: path.join(__dirname, 'icon-192.png'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

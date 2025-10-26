@@ -197,16 +197,10 @@ app.post('/api/scrape', async (req, res) => {
         options.addArguments('--silent');
         options.excludeSwitches('enable-logging');  // Hide ChromeDriver console
         
-        // Set service to hide console window
-        const service = new chrome.ServiceBuilder()
-            .setStdio('ignore')  // Hide console output
-            .build();
-        
-        // Build Chrome with timeout
+        // Build Chrome with timeout (simplified - no ServiceBuilder to avoid errors)
         const buildPromise = new Builder()
             .forBrowser('chrome')
             .setChromeOptions(options)
-            .setChromeService(service)
             .build();
         
         const timeoutPromise = new Promise((_, reject) => {
