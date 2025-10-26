@@ -867,24 +867,14 @@ class RefereeScheduler {
             html += '<p>✅ אין שינויים באתר - כל המשחקים זהים!</p>';
         }
         
-        // Show ALL games
+        // Show ALL games (no highlighting - calendar was fully synced)
         if (allGames && allGames.length > 0) {
             html += `<hr style="margin: 20px 0;"><h3>📋 כל המשחקים (${allGames.length}):</h3>`;
             allGames.forEach(game => {
                 const leagueName = game.leagueName || game.league;
-                // Mark game with color based on status
-                let borderColor = '#667eea'; // default
-                let statusIcon = '';
-                if (changes.added.some(g => g.id === game.id)) {
-                    borderColor = '#28a745';
-                    statusIcon = '✨ חדש ';
-                } else if (changes.updated && changes.updated.some(g => g.id === game.id)) {
-                    borderColor = '#ffc107';
-                    statusIcon = '🔄 עודכן ';
-                }
                 
-                html += `<div class="game-item" style="border-right: 4px solid ${borderColor};">
-                    <h4>${statusIcon}${game.homeTeamName || game.homeTeam} - ${game.guestTeamName || game.guestTeam} [${leagueName}]</h4>
+                html += `<div class="game-item">
+                    <h4>${game.homeTeamName || game.homeTeam} - ${game.guestTeamName || game.guestTeam} [${leagueName}]</h4>
                     <p>📅 ${game.date} ⏰ ${game.time}</p>
                     <p>📍 ${game.address}</p>
                 </div>`;
@@ -902,30 +892,43 @@ class RefereeScheduler {
         resultsContent.innerHTML = html;
         resultsContainer.style.display = 'block';
         
-        // Show success message with changes summary
+        // Show success message with calendar sync summary
         setTimeout(() => {
             let message = '';
             if (this.googleAccount) {
                 message = 'הלוח עודכן בהצלחה!\n\n';
-                if (this.deletedEventsCount > 0) {
-                    message += `🗑️ נמחקו: ${this.deletedEventsCount} אירועים\n`;
-                }
-                if (this.addedEventsCount > 0) {
-                    message += `➕ נוספו: ${this.addedEventsCount} משחקים\n`;
-                }
-                if (changes.added.length > 0) {
-                    message += `\n✨ משחקים חדשים באתר: ${changes.added.length}`;
-                }
-                if (changes.removed.length > 0) {
-                    message += `\n❌ משחקים שהוסרו מהאתר: ${changes.removed.length}`;
+                message += `📊 סנכרון מלא:\n`;
+                message += `🗑️ נמחקו ${this.deletedEventsCount} אירועים קיימים\n`;
+                message += `➕ נוספו ${this.addedEventsCount} משחקים\n`;
+                
+                // Only show website changes if there were any
+                const totalWebsiteChanges = changes.added.length + changes.removed.length + (changes.updated?.length || 0);
+                if (totalWebsiteChanges > 0) {
+                    message += `\n📝 שינויים באתר:\n`;
+                    if (changes.added.length > 0) {
+                        message += `✨ משחקים חדשים: ${changes.added.length}\n`;
+                    }
+                    if (changes.removed.length > 0) {
+                        message += `❌ משחקים שבוטלו: ${changes.removed.length}\n`;
+                    }
+                    if (changes.updated && changes.updated.length > 0) {
+                        message += `🔄 משחקים ששונו: ${changes.updated.length}\n`;
+                    }
+                } else {
+                    message += `\n✅ אין שינויים באתר`;
                 }
             } else {
                 message = 'הנתונים נשמרו מקומית!\n\n';
-                if (changes.added.length > 0) {
-                    message += `✨ משחקים חדשים: ${changes.added.length}\n`;
-                }
-                if (changes.removed.length > 0) {
-                    message += `❌ משחקים שהוסרו: ${changes.removed.length}\n`;
+                const totalChanges = changes.added.length + changes.removed.length;
+                if (totalChanges > 0) {
+                    if (changes.added.length > 0) {
+                        message += `✨ משחקים חדשים: ${changes.added.length}\n`;
+                    }
+                    if (changes.removed.length > 0) {
+                        message += `❌ משחקים שבוטלו: ${changes.removed.length}\n`;
+                    }
+                } else {
+                    message += `✅ אין שינויים\n`;
                 }
                 message += '\n⚠️ Google Calendar לא מחובר';
             }
