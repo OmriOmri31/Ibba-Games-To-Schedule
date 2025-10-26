@@ -583,12 +583,15 @@ class RefereeScheduler {
             const [day, month, year] = game.date.split('/');
             // Handle 2-digit year (e.g., 25 -> 2025) and 4-digit year (e.g., 2025)
             const fullYear = year.length === 2 ? `20${year}` : year;
-            return new Date(fullYear, month - 1, day);
+            const parsedDate = new Date(fullYear, month - 1, day);
+            console.log(`  📅 Parsing: ${game.date} -> ${parsedDate.toISOString().split('T')[0]}`);
+            return parsedDate;
         }).sort((a, b) => a - b);
         
         const firstDate = dates[0].toISOString().split('T')[0];
         const lastDate = dates[dates.length - 1].toISOString().split('T')[0];
         
+        console.log(`  🎯 Final range: ${firstDate} to ${lastDate}`);
         return { firstDate, lastDate };
     }
     
